@@ -1,0 +1,13 @@
+[package]
+name = "wgputinker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytemuck = "1.22.0"
+eframe = { version = "0.31.1", features = ["wgpu"] }
+egui = "0.31.1"
+log = "0.4.26"
+wasm-bindgen = "0.2.100"
+wasm-bindgen-futures = "0.4.50"
+web-sys = "0.3.77"
