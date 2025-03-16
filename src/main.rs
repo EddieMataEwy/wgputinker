@@ -1,8 +1,8 @@
 use std::num::NonZeroU64;
 
-use eframe::{
-    egui_wgpu::wgpu::util::DeviceExt,
-    egui_wgpu::{self, wgpu},
+use egui_wgpu::{
+    wgpu::util::DeviceExt,
+    wgpu,
 };
 
 pub struct Custom3d {
@@ -13,11 +13,10 @@ impl Custom3d {
     pub fn new<'a>(cc: &'a eframe::CreationContext<'a>) -> Self {
         // Get the WGPU render state from the eframe creation context. This can also be retrieved
         // from `eframe::Frame` when you don't have a `CreationContext` available.
-        let wgpu_render_state = cc.wgpu_render_state.as_ref().unwrap();
-            // .expect("should have wgpu render state");
+        let wgpu_render_state = cc.wgpu_render_state.as_ref()
+            .expect("Should have wgpu render state");
 
         let device = &wgpu_render_state.device;
-
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("custom3d"),
             source: wgpu::ShaderSource::Wgsl(include_str!("./custom3d_wgpu_shader.wgsl").into()),
@@ -101,7 +100,7 @@ impl Custom3d {
 
 impl eframe::App for Custom3d {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both()
                 .auto_shrink(false)
                 .show(ui, |ui| {
