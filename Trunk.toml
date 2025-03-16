@@ -2,3 +2,4 @@
 filehash = false
 dist = "docs"
 public_url = "/wgputinker/"
+release = true
