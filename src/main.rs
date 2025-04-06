@@ -5,47 +5,44 @@ use egui_wgpu::{
     wgpu,
 };
 
-const DEFAULT_CODE: &str = "
-    struct VertexOut {
-        @location(0) uv: vec2<f32>,
-        @builtin(position) position: vec4<f32>,
-    };
+const DEFAULT_CODE: &str = "struct VertexOut {
+    @location(0) uv: vec2<f32>,
+    @builtin(position) position: vec4<f32>,
+};
 
-    struct Uniforms {
-        @size(16) angle: f32, // pad to 16 bytes
-    };
+struct Uniforms {
+    @size(16) time: f32, // pad to 16 bytes
+};
 
-    @group(0) @binding(0)
-    var<uniform> uniforms: Uniforms;
+@group(0) @binding(0)
+var<uniform> uniforms: Uniforms;
 
-    var<private> v_positions: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(1.0, -1.0),
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>(-1.0, 1.0),
-        vec2<f32>(1.0, 1.0),
-    );
+var<private> v_positions: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
+    vec2<f32>(1.0, 1.0),
+    vec2<f32>(1.0, -1.0),
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(-1.0, 1.0),
+    vec2<f32>(1.0, 1.0),
+);
 
-    @vertex
-    fn vs_main(@builtin(vertex_index) v_idx: u32) -> VertexOut {
-        var out: VertexOut;
+@vertex
+fn vs_main(@builtin(vertex_index) v_idx: u32) -> VertexOut {
+    var out: VertexOut;
 
-        out.position = vec4<f32>(v_positions[v_idx], 0.0, 1.0);
-        out.position.x = out.position.x * cos(uniforms.angle);
-        out.uv = out.position.xy;
+    out.position = vec4<f32>(v_positions[v_idx], 0.0, 1.0);
+    out.uv = (out.position.xy + 1)/2;
 
-        return out;
-    }
+    return out;
+}
 
-    @fragment
-    fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-        return vec4<f32>(in.uv.x, in.uv.y, 0.0, 1.0);
-    }
-";
+@fragment
+fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(in.uv.x, in.uv.y, 0.0, 1.0);
+}";
 
 pub struct Custom3d {
-    angle: f32,
+    time: f32,
     code: String,
 }
 
@@ -61,7 +58,6 @@ impl Custom3d {
             label: Some("custom3d"),
             source: wgpu::ShaderSource::Wgsl(DEFAULT_CODE.into()), // wgpu::ShaderSource::Wgsl(include_str!("./custom3d_wgpu_shader.wgsl").into()),
         });
-
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("custom3d"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -134,7 +130,7 @@ impl Custom3d {
                 uniform_buffer,
             });
 
-        Self { angle: 0.0, code: DEFAULT_CODE.into() }
+        Self { time: 0.0, code: DEFAULT_CODE.into() }
     }
 }
 
@@ -152,7 +148,7 @@ impl eframe::App for Custom3d {
                     egui::ScrollArea::vertical()
                         .id_salt("editor")
                         .show(&mut columns[1], |ui| {
-                            ui.add(egui::TextEdit::multiline(&mut self.code).desired_width(f32::INFINITY))
+                            ui.code_editor(&mut self.code)
                         })
                 })
 
@@ -181,7 +177,7 @@ impl eframe::App for Custom3d {
 // The paint callback is called after finish prepare and is given access to egui's main render pass,
 // which can be used to issue draw commands.
 struct CustomTriangleCallback {
-    angle: f32,
+    time: f32,
 }
 
 impl egui_wgpu::CallbackTrait for CustomTriangleCallback {
@@ -194,7 +190,7 @@ impl egui_wgpu::CallbackTrait for CustomTriangleCallback {
         resources: &mut egui_wgpu::CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
         let resources: &TriangleRenderResources = resources.get().unwrap();
-        resources.prepare(device, queue, self.angle);
+        resources.prepare(device, queue, self.time);
         Vec::new()
     }
 
@@ -211,13 +207,10 @@ impl egui_wgpu::CallbackTrait for CustomTriangleCallback {
 
 impl Custom3d {
     fn custom_painting(&mut self, ui: &mut egui::Ui) {
-        let (rect, response) =
-            ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
-
-        self.angle += response.drag_motion().x * 0.01;
+        let rect = ui.max_rect();
         ui.painter().add(egui_wgpu::Callback::new_paint_callback(
             rect,
-            CustomTriangleCallback { angle: self.angle },
+            CustomTriangleCallback { time: self.time },
         ));
     }
 }
@@ -229,17 +222,17 @@ struct TriangleRenderResources {
 }
 
 impl TriangleRenderResources {
-    fn prepare(&self, _device: &wgpu::Device, queue: &wgpu::Queue, angle: f32) {
-        // Update our uniform buffer with the angle from the UI
+    fn prepare(&self, _device: &wgpu::Device, queue: &wgpu::Queue, time: f32) {
+        // Update our uniform buffer with the time from the UI
         queue.write_buffer(
             &self.uniform_buffer,
             0,
-            bytemuck::cast_slice(&[angle, 0.0, 0.0, 0.0]),
+            bytemuck::cast_slice(&[time, 0.0, 0.0, 0.0]),
         );
     }
 
     fn paint(&self, render_pass: &mut wgpu::RenderPass<'_>) {
-        // Draw our triangle!
+        // Draw our Triangle!
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.draw(0..6, 0..1);
