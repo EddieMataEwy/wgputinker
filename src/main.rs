@@ -5,8 +5,48 @@ use egui_wgpu::{
     wgpu,
 };
 
+const DEFAULT_CODE: &str = "
+    struct VertexOut {
+        @location(0) uv: vec2<f32>,
+        @builtin(position) position: vec4<f32>,
+    };
+
+    struct Uniforms {
+        @size(16) angle: f32, // pad to 16 bytes
+    };
+
+    @group(0) @binding(0)
+    var<uniform> uniforms: Uniforms;
+
+    var<private> v_positions: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(1.0, 1.0),
+    );
+
+    @vertex
+    fn vs_main(@builtin(vertex_index) v_idx: u32) -> VertexOut {
+        var out: VertexOut;
+
+        out.position = vec4<f32>(v_positions[v_idx], 0.0, 1.0);
+        out.position.x = out.position.x * cos(uniforms.angle);
+        out.uv = out.position.xy;
+
+        return out;
+    }
+
+    @fragment
+    fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
+        return vec4<f32>(in.uv.x, in.uv.y, 0.0, 1.0);
+    }
+";
+
 pub struct Custom3d {
     angle: f32,
+    code: String,
 }
 
 impl Custom3d {
@@ -19,7 +59,7 @@ impl Custom3d {
         let device = &wgpu_render_state.device;
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("custom3d"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("./custom3d_wgpu_shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(DEFAULT_CODE.into()), // wgpu::ShaderSource::Wgsl(include_str!("./custom3d_wgpu_shader.wgsl").into()),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -94,29 +134,28 @@ impl Custom3d {
                 uniform_buffer,
             });
 
-        Self { angle: 0.0 }
+        Self { angle: 0.0, code: DEFAULT_CODE.into() }
     }
 }
 
 impl eframe::App for Custom3d {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
             egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::both()
-                .auto_shrink(false)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
-                        ui.label("The triangle is being painted using ");
-                        ui.hyperlink_to("WGPU", "https://wgpu.rs");
-                        ui.label(" (Portable Rust graphics API awesomeness)");
-                    });
-                    ui.label("It's not a very impressive demo, but it shows you can embed 3D inside of egui.");
+                ui.columns(2, |columns| {
+                    egui::ScrollArea::vertical()
+                        .id_salt("render")
+                        .show(&mut columns[0], |ui| {
+                            egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                                self.custom_painting(ui);
+                            });
+                        });
+                    egui::ScrollArea::vertical()
+                        .id_salt("editor")
+                        .show(&mut columns[1], |ui| {
+                            ui.add(egui::TextEdit::multiline(&mut self.code).desired_width(f32::INFINITY))
+                        })
+                })
 
-                    egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                        self.custom_painting(ui);
-                    });
-                    ui.label("Drag to rotate!");
-                });
         });
     }
 }
@@ -203,7 +242,7 @@ impl TriangleRenderResources {
         // Draw our triangle!
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.bind_group, &[]);
-        render_pass.draw(0..3, 0..1);
+        render_pass.draw(0..6, 0..1);
     }
 }
 
